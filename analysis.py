@@ -130,3 +130,92 @@ def responder_analysis(conn):
 
 
 
+def part4_subset(conn):
+    base_filter = """
+        sub.condition = 'melanoma'
+    AND sub.treatment = 'miraclib'
+    AND s.sample_type = 'PBMC'
+    AND s.time_from_treatment_start = 0
+    """
+
+    samples = pd.read_sql_query(f"""
+        SELECT s.sample_id, sub.subject_id, sub.project_id,
+               sub.response, sub.sex, sub.age
+        FROM samples s
+        JOIN subjects sub ON sub.subject_id = s.subject_id
+        WHERE {base_filter};
+    """, conn)
+    samples.to_csv(OUT / "subset_samples.csv", index=False)
+
+    by_project = (samples.groupby("project_id")
+                          .size().rename("n_samples").reset_index()
+                          .sort_values("project_id"))
+    by_project.to_csv(OUT / "subset_by_project.csv", index=False)
+
+    
+    subj = samples.drop_duplicates("subject_id")
+    by_response = (subj.groupby("response", dropna=False)
+                       .size().rename("n_subjects").reset_index())
+    by_response.to_csv(OUT / "subset_by_response.csv", index=False)
+
+    by_sex = (subj.groupby("sex", dropna=False)
+                  .size().rename("n_subjects").reset_index())
+    by_sex.to_csv(OUT / "subset_by_sex.csv", index=False)
+
+    avg_b = pd.read_sql_query(f"""
+        SELECT AVG(cc.count) AS avg_b_cell, COUNT(*) AS n
+        FROM samples s
+        JOIN subjects sub  ON sub.subject_id = s.subject_id
+        JOIN cell_counts cc ON cc.sample_id  = s.sample_id
+        WHERE {base_filter}
+          AND sub.sex      = 'M'
+          AND sub.response = 'yes'
+          AND cc.population = 'b_cell';
+    """, conn)
+    avg = float(avg_b.iloc[0]["avg_b_cell"]) if avg_b.iloc[0]["n"] else float("nan")
+    n = int(avg_b.iloc[0]["n"])
+
+    summary = {
+        "n_samples_total": int(len(samples)),
+        "n_subjects_total": int(subj.shape[0]),
+        "by_project": by_project.to_dict(orient="records"),
+        "by_response": by_response.to_dict(orient="records"),
+        "by_sex": by_sex.to_dict(orient="records"),
+        "avg_b_cell_male_responder_t0": round(avg, 2) if n else None,
+        "n_male_responder_t0_samples": n,
+    }
+    pd.Series(
+        {"avg_b_cell_male_responder_t0": summary["avg_b_cell_male_responder_t0"],
+         "n_male_responder_t0_samples":  summary["n_male_responder_t0_samples"]}
+    ).to_csv(OUT / "subset_avg_b_cell.csv", header=["value"])
+    return summary
+
+
+def main() -> None:
+    conn = connect()
+    try:
+        freq = frequencies(conn)
+        print(f"[part 2] frequencies: {len(freq):,} rows -> outputs/frequencies.csv")
+
+        _, stats_df, plot_path = responder_analysis(conn)
+        print(f"[part 3] stats:")
+        for _, r in stats_df.iterrows():
+            sig = "*" if r["significant_alpha_0.05"] else " "
+            print(f"   {sig} {r['population']:11s}  p={r['p_value']:.4g}  "
+                  f"diff={r['mean_diff']:+.2f}%")
+        print(f"[part 3] boxplots -> {plot_path.relative_to(ROOT)}")
+
+        s = part4_subset(conn)
+        print(f"[part 4] baseline samples: {s['n_samples_total']} "
+              f"({s['n_subjects_total']} subjects)")
+        print(f"[part 4] by project: {s['by_project']}")
+        print(f"[part 4] by response: {s['by_response']}")
+        print(f"[part 4] by sex: {s['by_sex']}")
+        print(f"[part 4] avg b_cell (male, responder, t=0) = "
+              f"{s['avg_b_cell_male_responder_t0']}  (n={s['n_male_responder_t0_samples']})")
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    main()
