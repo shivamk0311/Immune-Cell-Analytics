@@ -94,6 +94,86 @@ def frequencies():
         selected_condition=condition,
     )
 
+@app.route("/responders")
+def responders():
+    treatment = request.args.get("treatment", "miraclib")
+    condition = request.args.get("condition", "melanoma")
+    sample_type = request.args.get("sample_type", "PBMC")
+
+    sql = """
+    WITH totals AS (
+        SELECT sample_id, SUM(count) AS total_count FROM cell_counts GROUP BY sample_id
+    )
+    SELECT s.sample_id      AS sample,
+           sub.response      AS response,
+           cc.population     AS population,
+           100.0 * cc.count / t.total_count AS percentage
+    FROM samples s
+    JOIN subjects sub  ON sub.subject_id = s.subject_id
+    JOIN cell_counts cc ON cc.sample_id  = s.sample_id
+    JOIN totals t       ON t.sample_id   = s.sample_id
+    WHERE sub.condition = ?
+      AND sub.treatment = ?
+      AND s.sample_type = ?
+      AND sub.response IN ('yes', 'no');
+    """
+    with conn() as c:
+        df = pd.read_sql_query(sql, c, params=(condition, treatment, sample_type))
+
+    if df.empty:
+        return render_template(
+            "responders.html",
+            empty=True, plot=None, stats_table=None,
+            treatments=distinct("subjects", "treatment"),
+            conditions=distinct("subjects", "condition"),
+            sample_types=distinct("samples", "sample_type"),
+            selected_treatment=treatment, selected_condition=condition,
+            selected_sample_type=sample_type,
+        )
+
+    fig = px.box(
+        df, x="population", y="percentage", color="response",
+        category_orders={"population": POPULATIONS, "response": ["yes", "no"]},
+        title=f"{condition} + {treatment} + {sample_type} — responders vs non-responders",
+        points="all",
+    )
+    fig.update_layout(yaxis_title="relative frequency (%)", height=480, boxmode="group")
+
+    rows = []
+    for pop in POPULATIONS:
+        sub = df[df.population == pop]
+        r = sub.loc[sub.response == "yes", "percentage"].to_numpy()
+        n = sub.loc[sub.response == "no",  "percentage"].to_numpy()
+        if len(r) == 0 or len(n) == 0:
+            rows.append({"population": pop, "n_yes": len(r), "n_no": len(n),
+                         "mean_yes": None, "mean_no": None,
+                         "mean_diff": None, "p_value": None, "significant": False})
+            continue
+        u, p = stats.mannwhitneyu(r, n, alternative="two-sided")
+        rows.append({
+            "population": pop,
+            "n_yes": int(len(r)), "n_no": int(len(n)),
+            "mean_yes": round(float(r.mean()), 3),
+            "mean_no":  round(float(n.mean()), 3),
+            "mean_diff": round(float(r.mean() - n.mean()), 3),
+            "p_value":  f"{p:.3g}",
+            "significant": bool(p < 0.05),
+        })
+    stats_df = pd.DataFrame(rows)
+
+    return render_template(
+        "responders.html",
+        empty=False,
+        plot=fig_html(fig, "resp-plot"),
+        stats_table=stats_df.to_html(classes="data", index=False, border=0),
+        treatments=distinct("subjects", "treatment"),
+        conditions=distinct("subjects", "condition"),
+        sample_types=distinct("samples", "sample_type"),
+        selected_treatment=treatment,
+        selected_condition=condition,
+        selected_sample_type=sample_type,
+    )
+
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
