@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% set active = 'subset' %}
+{% block content %}
+  <h1>Part 4 — Baseline subset</h1>
+  <p class="muted">Defaults reproduce Bob's filter: melanoma + miraclib + PBMC at
+    time = 0. Subject-level breakdowns dedupe on subject (so a subject with multiple
+    matching samples is counted once).</p>
+
+  <form class="filters" method="get" action="/subset">
+    <label>Condition
+      <select name="condition">
+        {% for c in conditions %}
+          <option value="{{c}}" {% if c==selected_condition %}selected{% endif %}>{{c}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Treatment
+      <select name="treatment">
+        {% for t in treatments %}
+          <option value="{{t}}" {% if t==selected_treatment %}selected{% endif %}>{{t}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Sample type
+      <select name="sample_type">
+        {% for s in sample_types %}
+          <option value="{{s}}" {% if s==selected_sample_type %}selected{% endif %}>{{s}}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Time from treatment start
+      <input type="number" name="time" value="{{ selected_time }}" step="1">
+    </label>
+    <button type="submit">Apply</button>
+  </form>
+
+  <div style="margin-top:14px">
+    <div class="stat"><div class="label">Matching samples</div><div class="value">{{ n_samples }}</div></div>
+    <div class="stat"><div class="label">Unique subjects</div><div class="value">{{ n_subjects }}</div></div>
+    <div class="stat">
+      <div class="label">Avg B-cell count<br>(male responders, t=0)</div>
+      <div class="value">
+        {% if avg_b_value is not none %}{{ '%.2f'|format(avg_b_value) }}{% else %}—{% endif %}
+      </div>
+      <div class="muted">n = {{ avg_b_n }}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">Samples per project</h2>
+    {{ by_project|safe }}
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Subjects by response</h2>
+    {{ by_response|safe }}
+  </div>
+  <div class="card">
+    <h2 style="margin-top:0">Subjects by sex</h2>
+    {{ by_sex|safe }}
+  </div>
+{% endblock %}

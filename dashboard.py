@@ -11,6 +11,8 @@ from scipy import stats
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = ROOT / "loblaw.db"
+OUT = ROOT / "outputs"
+OUT.mkdir(exist_ok=True)
 
 POPULATIONS = ["b_cell", "cd8_t_cell", "cd4_t_cell", "nk_cell", "monocyte"]
 
@@ -174,6 +176,63 @@ def responders():
         selected_sample_type=sample_type,
     )
 
+@app.route("/subset")
+def subset():
+    treatment = request.args.get("treatment", "miraclib")
+    condition = request.args.get("condition", "melanoma")
+    sample_type = request.args.get("sample_type", "PBMC")
+    time_point = int(request.args.get("time", 0))
+
+    base = """
+    FROM samples s
+    JOIN subjects sub ON sub.subject_id = s.subject_id
+    WHERE sub.condition = ?
+      AND sub.treatment = ?
+      AND s.sample_type = ?
+      AND s.time_from_treatment_start = ?
+    """
+    params = (condition, treatment, sample_type, time_point)
+
+    with conn() as c:
+        samples = pd.read_sql_query(
+            f"SELECT s.sample_id, sub.subject_id, sub.project_id, sub.response, sub.sex {base};",
+            c, params=params,
+        )
+        avg_b = pd.read_sql_query(f"""
+            SELECT AVG(cc.count) AS avg_b_cell, COUNT(*) AS n
+            FROM samples s
+            JOIN subjects sub  ON sub.subject_id = s.subject_id
+            JOIN cell_counts cc ON cc.sample_id  = s.sample_id
+            WHERE sub.condition = ? AND sub.treatment = ? AND s.sample_type = ?
+              AND s.time_from_treatment_start = ?
+              AND sub.sex = 'M' AND sub.response = 'yes'
+              AND cc.population = 'b_cell';
+        """, c, params=params)
+
+    subj = samples.drop_duplicates("subject_id")
+    by_project = samples.groupby("project_id").size().rename("n_samples").reset_index()
+    by_response = subj.groupby("response", dropna=False).size().rename("n_subjects").reset_index()
+    by_sex = subj.groupby("sex", dropna=False).size().rename("n_subjects").reset_index()
+
+    avg_b_value = (round(float(avg_b.iloc[0]["avg_b_cell"]), 2)
+                   if avg_b.iloc[0]["n"] else None)
+
+    return render_template(
+        "subset.html",
+        treatments=distinct("subjects", "treatment"),
+        conditions=distinct("subjects", "condition"),
+        sample_types=distinct("samples", "sample_type"),
+        selected_treatment=treatment,
+        selected_condition=condition,
+        selected_sample_type=sample_type,
+        selected_time=time_point,
+        n_samples=len(samples), n_subjects=len(subj),
+        by_project=by_project.to_html(classes="data", index=False, border=0),
+        by_response=by_response.to_html(classes="data", index=False, border=0),
+        by_sex=by_sex.to_html(classes="data", index=False, border=0),
+        avg_b_value=avg_b_value,
+        avg_b_n=int(avg_b.iloc[0]["n"]),
+    )
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=5000, debug=False)
