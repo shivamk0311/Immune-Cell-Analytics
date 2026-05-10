@@ -60,7 +60,7 @@ def responder_analysis(conn):
            cc.population AS population,
            100 * cc.count/t.total_count AS percentage
     FROM samples s
-    JOIN subjects sub ON sub.subject_id = s.subject.id
+    JOIN subjects sub ON sub.subject_id = s.subject_id
     JOIN cell_counts cc ON cc.sample_id = s.sample_id
     JOIN totals t ON t.sample_id = s.sample_id
     WHERE sub.condition = 'melanoma'
@@ -95,38 +95,38 @@ def responder_analysis(conn):
             float(p),
         ))
 
-        stats_df = pd.DataFrame(rows, columns = [
-            "population", "n_responders", "n_non_responders", "mean_pct_responders", "mean_pct_non_responders", "mean_diff", "mannwhitney_u", "p_value",
-        ])
+    stats_df = pd.DataFrame(rows, columns = [
+        "population", "n_responders", "n_non_responders", "mean_pct_responders", "mean_pct_non_responders", "mean_diff", "mannwhitney_u", "p_value",
+    ])
 
-        stats_df["p_value_bonferroni"] = (stats_df["p_value"] * len(POPULATIONS)).clip(upper=1.0)
-        stats_df["significant_alpha_0.05"] = stats_df["p_value"] < 0.05
-        stats_df.to_csv(OUT / "responder_stats.csv", index=False)
+    stats_df["p_value_bonferroni"] = (stats_df["p_value"] * len(POPULATIONS)).clip(upper=1.0)
+    stats_df["significant_alpha_0.05"] = stats_df["p_value"] < 0.05
+    stats_df.to_csv(OUT / "responder_stats.csv", index=False)
 
-        fig, axes = plt.subplots(1, len(POPULATIONS), figsize=(16, 4), sharey=False)
-        for ax, pop in zip(axes, POPULATIONS):
-            sub = df[df.population == pop]
-            data = [
-                sub.loc[sub.response == "yes", "percentage"].to_numpy(),
-                sub.loc[sub.response == "no",  "percentage"].to_numpy(),
-            ]
-            ax.boxplot(data, showmeans=True)
-            ax.set_xticks([1, 2])
-            ax.set_xticklabels(["yes", "no"])
-            ax.set_title(pop)
-            ax.set_xlabel("response")
-            ax.set_ylabel("relative frequency (%)")
-            p = stats_df.loc[stats_df.population == pop, "p_value"].iloc[0]
-            ax.text(0.5, 0.95, f"p = {p:.3g}", transform=ax.transAxes,
-                    ha="center", va="top", fontsize=9,
-                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="gray", alpha=0.8))
-        fig.suptitle("Melanoma + miraclib + PBMC — responders (yes) vs non-responders (no)")
-        fig.tight_layout()
-        plot_path = OUT / "responder_boxplots.png"
-        fig.savefig(plot_path, dpi=130)
-        plt.close(fig)
+    fig, axes = plt.subplots(1, len(POPULATIONS), figsize=(16, 4), sharey=False)
+    for ax, pop in zip(axes, POPULATIONS):
+        sub = df[df.population == pop]
+        data = [
+            sub.loc[sub.response == "yes", "percentage"].to_numpy(),
+            sub.loc[sub.response == "no",  "percentage"].to_numpy(),
+        ]
+        ax.boxplot(data, showmeans=True)
+        ax.set_xticks([1, 2])
+        ax.set_xticklabels(["yes", "no"])
+        ax.set_title(pop)
+        ax.set_xlabel("response")
+        ax.set_ylabel("relative frequency (%)")
+        p = stats_df.loc[stats_df.population == pop, "p_value"].iloc[0]
+        ax.text(0.5, 0.95, f"p = {p:.3g}", transform=ax.transAxes,
+            ha="center", va="top", fontsize=9,
+            bbox=dict(boxstyle="round,pad=0.2", fc="white", ec="gray", alpha=0.8))
+    fig.suptitle("Melanoma + miraclib + PBMC — responders (yes) vs non-responders (no)")
+    fig.tight_layout()
+    plot_path = OUT / "responder_boxplots.png"
+    fig.savefig(plot_path, dpi=130)
+    plt.close(fig)
 
-        return df, stats_df, plot_path
+    return df, stats_df, plot_path
 
 
 

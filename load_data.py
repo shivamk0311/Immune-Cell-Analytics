@@ -3,11 +3,11 @@ import csv
 import sqlite3
 from pathlib import Path
 
-ROOT = Path(__file__).resolve.parent
+ROOT = Path(__file__).resolve().parent
 CSV_PATH = ROOT / "cell-count.csv"
 DB_PATH = ROOT / "loblaw.db"
 
-POPULATIONS = ("b_cell", "cd8_t_cell", "cd_4_t_cell", "nk_cell", "monocyte" )
+POPULATIONS = ("b_cell", "cd8_t_cell", "cd4_t_cell", "nk_cell", "monocyte" )
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -43,11 +43,11 @@ CREATE TABLE cell_counts (
 CREATE INDEX idx_subjects_project ON subjects(project_id);
 CREATE INDEX idx_subjects_condition ON subjects(condition);
 CREATE INDEX idx_subjects_treatment ON subjects(treatment);
-CREATE INDEX idx_subjects_response ON subjects(resposne);
+CREATE INDEX idx_subjects_response ON subjects(response);
 CREATE INDEX idx_subjects_subject ON subjects(subject_id);
-CREATE INDEX idx_subjects_time ON subjects(time_from_treatment_start);
-CREATE INDEX idx_subjects_type ON subjects(sample_type);
-CREATE INDEX idx_subjects_pop ON subjects(population);
+CREATE INDEX idx_subjects_time ON samples(time_from_treatment_start);
+CREATE INDEX idx_subjects_type ON samples(sample_type);
+CREATE INDEX idx_subjects_pop ON cell_counts(population);
 
 """
 
