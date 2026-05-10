@@ -22,7 +22,7 @@ def conn():
     return sqlite3.connect(DB_PATH)
 
 def fig_html(fig, div_id):
-    return pio.to_html(fig, include_plotlyjs=False, full_html=False, div_id=div_id)
+    return pio.to_html(fig, include_plotlyjs=True, full_html=False, div_id=div_id)
 
 def distinct(col_table, col):
     with conn() as c:
