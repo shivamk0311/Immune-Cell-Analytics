@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set active = 'index' %}
+{% block content %}
+  <h1>Cell Count Dashboard</h1>
+  <p class="muted">Interactive view of the cell-count clinical-trial dataset. Use the
+    nav above to explore population frequencies, responder vs non-responder
+    comparisons, and baseline subset breakdowns.</p>
+
+  <div>
+    <div class="stat"><div class="label">Projects</div>     <div class="value">{{ counts.projects }}</div></div>
+    <div class="stat"><div class="label">Subjects</div>     <div class="value">{{ counts.subjects }}</div></div>
+    <div class="stat"><div class="label">Samples</div>      <div class="value">{{ counts.samples }}</div></div>
+    <div class="stat"><div class="label">Cell-count rows</div><div class="value">{{ counts.cell_counts }}</div></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-top:0">What's here</h2>
+    <ul>
+      <li><b>Part 2 — Frequencies:</b> per-sample relative frequency table and a
+        boxplot of population frequency distributions, optionally filtered by
+        sample type and condition.</li>
+      <li><b>Part 3 — Responders:</b> melanoma + miraclib + PBMC by default;
+        boxplot of each population's relative frequency split by response, with
+        Mann-Whitney U p-values.</li>
+      <li><b>Part 4 — Subset:</b> baseline (time = 0) breakdown by project,
+        response, and sex; plus the average B-cell count for male responders at
+        baseline.</li>
+    </ul>
+  </div>
+{% endblock %}
